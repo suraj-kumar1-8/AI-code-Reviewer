@@ -15,7 +15,9 @@ import {
   FileCode,
   CheckCircle,
   X,
-  Code2
+  Code2,
+  Menu,
+  CheckCircle2,
 } from 'lucide-react';
 
 export const Review: React.FC = () => {
@@ -25,6 +27,14 @@ export const Review: React.FC = () => {
   const [filterSeverity, setFilterSeverity] = useState<string>('all');
   const [inspectIssue, setInspectIssue] = useState<CodeIssue | null>(null);
   const [isReanalyzing, setIsReanalyzing] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [applyFeedback, setApplyFeedback] = useState<string | null>(null);
+
+  // Cache viewed repository
+  React.useEffect(() => {
+    const targetId = id || repoParam || 'cloudshare';
+    localStorage.setItem('lastViewedRepoId', targetId);
+  }, [id, repoParam]);
 
   // Load real repo details if available
   React.useEffect(() => {
@@ -102,18 +112,37 @@ export const Review: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#080F1A] text-white flex">
+      {/* Desktop Sidebar Navigation */}
       <Sidebar className="hidden md:flex" />
+
+      {/* Mobile Drawer Navigation */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-50 md:hidden bg-black/80 backdrop-blur-sm flex">
+          <Sidebar className="w-72" onClose={() => setMobileMenuOpen(false)} />
+          <div className="flex-1" onClick={() => setMobileMenuOpen(false)} />
+        </div>
+      )}
 
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Header */}
         <header className="border-b border-white/8 px-6 sm:px-8 py-5 bg-[#080F1A]/80 backdrop-blur-md sticky top-0 z-20">
-          <Link
-            to="/dashboard"
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-400 hover:text-white mb-3 transition-colors"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Back to Repositories</span>
-          </Link>
+          <div className="flex items-center justify-between mb-3">
+            <Link
+              to="/dashboard"
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-400 hover:text-white transition-colors"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Back to Repositories</span>
+            </Link>
+
+            <button
+              onClick={() => setMobileMenuOpen(true)}
+              className="md:hidden p-1.5 rounded-lg bg-white/5 border border-white/10 text-gray-400 hover:text-white"
+              aria-label="Open navigation menu"
+            >
+              <Menu className="w-4 h-4" />
+            </button>
+          </div>
 
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -396,8 +425,22 @@ export const Review: React.FC = () => {
               )}
             </div>
 
+            {applyFeedback && (
+              <div className="p-3 rounded-xl bg-emerald-950/30 border border-emerald-500/40 text-emerald-300 text-xs flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>{applyFeedback}</span>
+              </div>
+            )}
+
             <div className="pt-3 border-t border-white/10 flex justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={() => setInspectIssue(null)}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setInspectIssue(null);
+                  setApplyFeedback(null);
+                }}
+              >
                 Close
               </Button>
               <Button
@@ -405,8 +448,11 @@ export const Review: React.FC = () => {
                 size="sm"
                 leftIcon={<CheckCircle className="w-3.5 h-3.5" />}
                 onClick={() => {
-                  alert('Automated PR fix patch will be implemented in Day 2+ GitHub integration.');
-                  setInspectIssue(null);
+                  setApplyFeedback('Fix patch drafted! Automated GitHub Pull Request creation will be available in Day 3+.');
+                  setTimeout(() => {
+                    setInspectIssue(null);
+                    setApplyFeedback(null);
+                  }, 2200);
                 }}
               >
                 Apply Fix Suggestion

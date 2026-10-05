@@ -8,7 +8,6 @@ import { Menu, X, Sun, LogOut, LayoutDashboard } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
   const { user, isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
@@ -76,9 +75,10 @@ export const Navbar: React.FC = () => {
                   </Link>
 
                   <button
-                    onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                    aria-label="User menu"
-                    className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
+                    onClick={() => navigate('/dashboard')}
+                    title="Open Dashboard"
+                    aria-label="Open Dashboard"
+                    className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
                   >
                     <LayoutDashboard className="w-4 h-4 text-indigo-400" />
                   </button>

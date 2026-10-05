@@ -20,6 +20,7 @@ import {
   AlertCircle,
   X,
   Calendar,
+  Menu,
 } from 'lucide-react';
 
 const LANGUAGE_COLORS: Record<string, string> = {
@@ -54,6 +55,7 @@ export const Dashboard: React.FC = () => {
   const [visibilityFilter, setVisibilityFilter] = useState<'all' | 'public' | 'private'>('all');
   const [sortBy, setSortBy] = useState<'updated' | 'stars' | 'name'>('updated');
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
 
   // Fetch real repositories from GitHub API via server
   const loadRepositories = async () => {
@@ -62,6 +64,10 @@ export const Dashboard: React.FC = () => {
       const data = await api.getRepos();
       if (data.success && Array.isArray(data.repositories)) {
         setRepositories(data.repositories);
+        // Cache first repo ID for sidebar review link if not set
+        if (data.repositories.length > 0 && !localStorage.getItem('lastViewedRepoId')) {
+          localStorage.setItem('lastViewedRepoId', String(data.repositories[0].id));
+        }
       } else {
         throw new Error(data.error || 'Failed to retrieve repository list');
       }
@@ -81,6 +87,11 @@ export const Dashboard: React.FC = () => {
   const handleManualRefresh = () => {
     setIsRefreshing(true);
     loadRepositories();
+  };
+
+  const handleAnalyzeRepo = (repo: GitHubRepo) => {
+    localStorage.setItem('lastViewedRepoId', String(repo.id));
+    navigate(`/review/${repo.id}`);
   };
 
   // Calculated statistics
@@ -155,68 +166,95 @@ export const Dashboard: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#080F1A] text-white flex">
-      {/* Sidebar Navigation */}
+      {/* Desktop Sidebar Navigation */}
       <Sidebar className="hidden md:flex" />
+
+      {/* Mobile Drawer Navigation */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-50 md:hidden bg-black/80 backdrop-blur-sm flex">
+          <Sidebar className="w-72" onClose={() => setMobileMenuOpen(false)} />
+          <div className="flex-1" onClick={() => setMobileMenuOpen(false)} />
+        </div>
+      )}
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Header / Profile Banner */}
-        <header className="border-b border-white/[0.08] px-6 sm:px-8 py-5 bg-[#080F1A]/90 backdrop-blur-md sticky top-0 z-20">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
+        <header className="border-b border-white/[0.08] px-4 sm:px-8 py-4 sm:py-5 bg-[#080F1A]/90 backdrop-blur-md sticky top-0 z-20">
+          <div className="flex items-center justify-between gap-4">
+            {/* Left: Mobile Menu Trigger & Profile Greeting */}
+            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+              <button
+                onClick={() => setMobileMenuOpen(true)}
+                className="md:hidden p-2 rounded-xl bg-white/5 border border-white/10 text-gray-400 hover:text-white"
+                aria-label="Open navigation menu"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+
               {user?.avatar_url ? (
                 <img
                   src={user.avatar_url}
                   alt={user.login}
-                  className="w-12 h-12 rounded-2xl object-cover border-2 border-indigo-500/40 shadow-lg shadow-indigo-500/10 shrink-0"
+                  className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl object-cover border-2 border-indigo-500/40 shadow-lg shadow-indigo-500/10 shrink-0"
                 />
               ) : (
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center text-lg font-bold text-white shrink-0">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center text-base sm:text-lg font-bold text-white shrink-0">
                   {user?.login?.charAt(0).toUpperCase() || 'U'}
                 </div>
               )}
-              <div>
-                <h1 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
-                  Welcome back, {user?.name || user?.login || 'Developer'}
-                  <span className="inline-block text-xl">👋</span>
+              <div className="min-w-0">
+                <h1 className="text-lg sm:text-2xl font-bold text-white flex items-center gap-2 truncate">
+                  <span className="truncate">Welcome back, {user?.name || user?.login || 'Developer'}</span>
+                  <span className="inline-block text-lg shrink-0">👋</span>
                 </h1>
                 <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-400">
                   <span className="font-mono text-indigo-400 font-medium">@{user?.login || 'github'}</span>
                   {user?.bio && (
                     <>
-                      <span>•</span>
-                      <span className="truncate max-w-sm text-gray-400">{user.bio}</span>
+                      <span className="hidden sm:inline">•</span>
+                      <span className="hidden sm:inline truncate max-w-sm text-gray-400">{user.bio}</span>
                     </>
                   )}
                   {user?.location && (
                     <>
-                      <span>•</span>
-                      <span className="text-gray-500">{user.location}</span>
+                      <span className="hidden md:inline">•</span>
+                      <span className="hidden md:inline text-gray-500">{user.location}</span>
                     </>
                   )}
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            {/* Right: Actions */}
+            <div className="flex items-center gap-3 shrink-0">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleManualRefresh}
                 disabled={isRefreshing || loading}
+                title="Sync and re-fetch latest repositories from GitHub API"
                 leftIcon={<RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />}
               >
-                {isRefreshing ? 'Syncing...' : 'Sync GitHub'}
+                <span className="hidden sm:inline">{isRefreshing ? 'Syncing...' : 'Sync GitHub'}</span>
+                <span className="sm:hidden">{isRefreshing ? 'Syncing' : 'Sync'}</span>
               </Button>
             </div>
           </div>
         </header>
 
         {/* Dashboard Body */}
-        <main className="p-6 sm:p-8 space-y-8 flex-1 overflow-y-auto">
-          {/* Real Metrics Row */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            <Card className="p-5 border-white/[0.08] bg-[#0E1626]/80 flex items-center justify-between">
+        <main className="p-4 sm:p-8 space-y-8 flex-1 overflow-y-auto">
+          {/* Real Metrics Row — Clickable to Filter */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+            <Card
+              hoverEffect
+              onClick={() => setVisibilityFilter('all')}
+              title="Click to view all repositories"
+              className={`p-5 border-white/[0.08] bg-[#0E1626]/80 flex items-center justify-between cursor-pointer transition-all ${
+                visibilityFilter === 'all' ? 'ring-1 ring-indigo-500/50 border-indigo-500/40' : ''
+              }`}
+            >
               <div>
                 <p className="text-xs font-medium text-gray-400">Total Repositories</p>
                 <p className="text-2xl font-extrabold text-white mt-1">
@@ -224,12 +262,19 @@ export const Dashboard: React.FC = () => {
                 </p>
                 <p className="text-[11px] text-gray-500 mt-1">Connected from GitHub</p>
               </div>
-              <div className="w-12 h-12 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+              <div className="w-12 h-12 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0">
                 <FolderGit2 className="w-6 h-6" />
               </div>
             </Card>
 
-            <Card className="p-5 border-white/[0.08] bg-[#0E1626]/80 flex items-center justify-between">
+            <Card
+              hoverEffect
+              onClick={() => setVisibilityFilter('public')}
+              title="Click to filter by public repositories"
+              className={`p-5 border-white/[0.08] bg-[#0E1626]/80 flex items-center justify-between cursor-pointer transition-all ${
+                visibilityFilter === 'public' ? 'ring-1 ring-emerald-500/50 border-emerald-500/40' : ''
+              }`}
+            >
               <div>
                 <p className="text-xs font-medium text-gray-400">Public Repositories</p>
                 <p className="text-2xl font-extrabold text-white mt-1">
@@ -240,12 +285,19 @@ export const Dashboard: React.FC = () => {
                   Publicly visible
                 </p>
               </div>
-              <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+              <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
                 <Globe className="w-6 h-6" />
               </div>
             </Card>
 
-            <Card className="p-5 border-white/[0.08] bg-[#0E1626]/80 flex items-center justify-between">
+            <Card
+              hoverEffect
+              onClick={() => setVisibilityFilter('private')}
+              title="Click to filter by private repositories"
+              className={`p-5 border-white/[0.08] bg-[#0E1626]/80 flex items-center justify-between cursor-pointer transition-all ${
+                visibilityFilter === 'private' ? 'ring-1 ring-purple-500/50 border-purple-500/40' : ''
+              }`}
+            >
               <div>
                 <p className="text-xs font-medium text-gray-400">Private Repositories</p>
                 <p className="text-2xl font-extrabold text-white mt-1">
@@ -256,12 +308,19 @@ export const Dashboard: React.FC = () => {
                   Encrypted & private
                 </p>
               </div>
-              <div className="w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+              <div className="w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 shrink-0">
                 <Lock className="w-6 h-6" />
               </div>
             </Card>
 
-            <Card className="p-5 border-white/[0.08] bg-[#0E1626]/80 flex items-center justify-between">
+            <Card
+              hoverEffect
+              onClick={() => setSortBy('stars')}
+              title="Click to sort repositories by most stars"
+              className={`p-5 border-white/[0.08] bg-[#0E1626]/80 flex items-center justify-between cursor-pointer transition-all ${
+                sortBy === 'stars' ? 'ring-1 ring-amber-500/50 border-amber-500/40' : ''
+              }`}
+            >
               <div>
                 <p className="text-xs font-medium text-gray-400">Total Stars & Forks</p>
                 <p className="text-2xl font-extrabold text-white mt-1">
@@ -272,14 +331,14 @@ export const Dashboard: React.FC = () => {
                   {stats.totalForks} forks across repos
                 </p>
               </div>
-              <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+              <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shrink-0">
                 <Star className="w-6 h-6" />
               </div>
             </Card>
           </div>
 
           {/* Repositories Section */}
-          <div className="space-y-5">
+          <div id="repositories-section" className="space-y-5">
             {/* Filter and Search Bar Controls */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
@@ -312,6 +371,7 @@ export const Dashboard: React.FC = () => {
                     <button
                       onClick={() => setSearchTerm('')}
                       className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white p-0.5"
+                      title="Clear search"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
@@ -322,6 +382,7 @@ export const Dashboard: React.FC = () => {
                 <div className="flex items-center bg-[#0E1626] border border-white/10 p-1 rounded-xl">
                   <button
                     onClick={() => setVisibilityFilter('all')}
+                    title="Show all repositories"
                     className={`px-3 py-1 text-xs font-medium rounded-lg transition-all cursor-pointer ${
                       visibilityFilter === 'all'
                         ? 'bg-indigo-600 text-white shadow-sm'
@@ -332,6 +393,7 @@ export const Dashboard: React.FC = () => {
                   </button>
                   <button
                     onClick={() => setVisibilityFilter('public')}
+                    title="Show public repositories only"
                     className={`px-3 py-1 text-xs font-medium rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
                       visibilityFilter === 'public'
                         ? 'bg-indigo-600 text-white shadow-sm'
@@ -343,6 +405,7 @@ export const Dashboard: React.FC = () => {
                   </button>
                   <button
                     onClick={() => setVisibilityFilter('private')}
+                    title="Show private repositories only"
                     className={`px-3 py-1 text-xs font-medium rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
                       visibilityFilter === 'private'
                         ? 'bg-indigo-600 text-white shadow-sm'
@@ -358,6 +421,7 @@ export const Dashboard: React.FC = () => {
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as any)}
+                  title="Sort repositories"
                   className="bg-[#0E1626] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500/60 cursor-pointer"
                 >
                   <option value="updated">Recently Updated</option>
@@ -466,7 +530,7 @@ export const Dashboard: React.FC = () => {
                       key={repo.id}
                       hoverEffect
                       className="p-5 flex flex-col justify-between border-white/[0.08] bg-[#0E1626]/90 hover:border-indigo-500/40 group cursor-pointer transition-all duration-200"
-                      onClick={() => navigate(`/review/${repo.id}`)}
+                      onClick={() => handleAnalyzeRepo(repo)}
                     >
                       <div>
                         {/* Header: Title + Visibility Badge */}
@@ -479,7 +543,7 @@ export const Dashboard: React.FC = () => {
                                 target="_blank"
                                 rel="noreferrer"
                                 onClick={(e) => e.stopPropagation()}
-                                title="Open on GitHub"
+                                title="Open on GitHub in new tab"
                                 className="text-gray-500 hover:text-white transition-colors shrink-0 p-0.5"
                               >
                                 <ExternalLink className="w-3.5 h-3.5" />
@@ -549,7 +613,7 @@ export const Dashboard: React.FC = () => {
                           size="sm"
                           onClick={(e) => {
                             e.stopPropagation();
-                            navigate(`/review/${repo.id}`);
+                            handleAnalyzeRepo(repo);
                           }}
                           rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
                         >
