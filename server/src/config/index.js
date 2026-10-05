@@ -1,5 +1,4 @@
-import dotenv from 'dotenv';
-dotenv.config();
+import './loadEnv.js';
 
 export const config = {
   port: process.env.PORT || 5001,
@@ -17,3 +16,5 @@ export const config = {
     scopes: ['read:user', 'user:email', 'repo'].join(' '),
   },
 };
+
+export default config;

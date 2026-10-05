@@ -1,3 +1,4 @@
+import './config/loadEnv.js';
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
@@ -47,6 +48,8 @@ if (process.env.NODE_ENV !== 'test') {
     console.log(`[AI Code Reviewer API] GitHub OAuth Callback URL: ${config.github.callbackUrl}`);
     if (!config.github.clientId || !config.github.clientSecret) {
       console.warn('⚠️  [Warning] GITHUB_CLIENT_ID or GITHUB_CLIENT_SECRET not configured in server/.env.');
+    } else {
+      console.log('✅ [OAuth Ready] GitHub OAuth Client ID and Secret successfully loaded.');
     }
   });
 }
