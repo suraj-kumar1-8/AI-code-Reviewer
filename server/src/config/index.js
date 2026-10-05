@@ -18,7 +18,7 @@ export const config = {
   ai: {
     geminiApiKey: process.env.GEMINI_API_KEY || '',
     openaiApiKey: process.env.OPENAI_API_KEY || '',
-    geminiModel: process.env.GEMINI_MODEL || 'gemini-2.0-flash',
+    geminiModel: process.env.GEMINI_MODEL || 'gemini-3.7-flash',
     openaiModel: process.env.OPENAI_MODEL || 'gpt-4o-mini',
   },
 };

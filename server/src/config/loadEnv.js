@@ -35,15 +35,18 @@ if (!loadedPath) {
 
 const clientIdLoaded = Boolean(process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_ID.trim());
 const clientSecretLoaded = Boolean(process.env.GITHUB_CLIENT_SECRET && process.env.GITHUB_CLIENT_SECRET.trim());
+const geminiKeyLoaded = Boolean(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim());
 
 console.log(`[Env Loader] Target file: ${loadedPath || 'default process.cwd()/.env'}`);
 console.log(`GitHub Client ID loaded: ${clientIdLoaded}`);
 console.log(`GitHub Client Secret loaded: ${clientSecretLoaded}`);
+console.log(`Gemini API Key loaded: ${geminiKeyLoaded}`);
 
 export const envStatus = {
   loadedPath,
   clientIdLoaded,
   clientSecretLoaded,
+  geminiKeyLoaded,
 };
 
 export default envStatus;

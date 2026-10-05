@@ -287,12 +287,12 @@ export const geminiService = {
     if (apiKey && apiKey.trim()) {
       try {
         console.log(`[geminiService] Calling Google Gemini API for ${repository.owner}/${repository.name}...`);
-        const modelName = config.ai.geminiModel || process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+        const modelName = config.ai.geminiModel || process.env.GEMINI_MODEL || 'gemini-3.7-flash';
 
-        // 1. Try with @google/genai SDK
+        // 1. Try with @google/genai SDK with 15s timeout
         try {
           const ai = new GoogleGenAI({ apiKey: apiKey.trim() });
-          const response = await ai.models.generateContent({
+          const sdkPromise = ai.models.generateContent({
             model: modelName,
             contents: prompt,
             config: {
@@ -301,22 +301,37 @@ export const geminiService = {
             },
           });
 
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('SDK call timed out after 15s')), 15000)
+          );
+
+          const response = await Promise.race([sdkPromise, timeoutPromise]);
+
           if (response && response.text) {
-            console.log(`[geminiService] Gemini SDK response received successfully.`);
+            console.log(`[geminiService] Gemini SDK response received successfully using ${modelName}.`);
             return normalizeGeminiOutput(response.text, repository, files);
           }
         } catch (sdkErr) {
-          console.warn(`[geminiService] SDK call encountered error: ${sdkErr.message}. Trying direct REST endpoint...`);
+          console.warn(`[geminiService] SDK call (${modelName}) error: ${sdkErr.message}. Trying candidate models via REST fallback...`);
         }
 
-        // 2. Direct REST Fallback (handles model variations)
-        const candidateModels = [modelName, 'gemini-2.0-flash', 'gemini-1.5-flash'];
+        // 2. Direct REST Fallback (handles model variations with deduplication and 12s timeout)
+        const candidateModels = Array.from(new Set([
+          modelName,
+          'gemini-3.7-flash',
+          'gemini-3.5-flash',
+          'gemini-flash-latest',
+          'gemini-3.8-flash',
+          'gemini-3.1-flash-lite',
+        ]));
+
         for (const model of candidateModels) {
           try {
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey.trim()}`;
             const res = await fetch(url, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
+              signal: AbortSignal.timeout(12000),
               body: JSON.stringify({
                 contents: [{ parts: [{ text: prompt }] }],
                 generationConfig: {
