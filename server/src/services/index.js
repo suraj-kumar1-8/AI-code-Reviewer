@@ -1,3 +1,3 @@
-// Prepared for Day 2+ GitHub API & AI Services
-export const githubService = {};
-export const aiService = {};
+export { githubService } from './githubService.js';
+export { repoFileFetcher } from './repoFileFetcher.js';
+export { aiService } from './aiService.js';

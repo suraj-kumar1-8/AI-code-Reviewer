@@ -56,6 +56,7 @@ export const Dashboard: React.FC = () => {
   const [sortBy, setSortBy] = useState<'updated' | 'stars' | 'name'>('updated');
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
+  const [analyzingRepoId, setAnalyzingRepoId] = useState<number | null>(null);
 
   // Fetch real repositories from GitHub API via server
   const loadRepositories = async () => {
@@ -67,6 +68,8 @@ export const Dashboard: React.FC = () => {
         // Cache first repo ID for sidebar review link if not set
         if (data.repositories.length > 0 && !localStorage.getItem('lastViewedRepoId')) {
           localStorage.setItem('lastViewedRepoId', String(data.repositories[0].id));
+          localStorage.setItem('lastViewedRepoOwner', data.repositories[0].owner);
+          localStorage.setItem('lastViewedRepoName', data.repositories[0].name);
         }
       } else {
         throw new Error(data.error || 'Failed to retrieve repository list');
@@ -90,8 +93,12 @@ export const Dashboard: React.FC = () => {
   };
 
   const handleAnalyzeRepo = (repo: GitHubRepo) => {
+    if (analyzingRepoId !== null) return;
+    setAnalyzingRepoId(repo.id);
     localStorage.setItem('lastViewedRepoId', String(repo.id));
-    navigate(`/review/${repo.id}`);
+    localStorage.setItem('lastViewedRepoOwner', repo.owner);
+    localStorage.setItem('lastViewedRepoName', repo.name);
+    navigate(`/review/${repo.owner}/${repo.name}`);
   };
 
   // Calculated statistics
@@ -611,13 +618,23 @@ export const Dashboard: React.FC = () => {
                         <Button
                           variant="primary"
                           size="sm"
+                          disabled={analyzingRepoId !== null}
                           onClick={(e) => {
                             e.stopPropagation();
                             handleAnalyzeRepo(repo);
                           }}
-                          rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
+                          leftIcon={
+                            analyzingRepoId === repo.id ? (
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            ) : undefined
+                          }
+                          rightIcon={
+                            analyzingRepoId === repo.id ? undefined : (
+                              <ArrowRight className="w-3.5 h-3.5" />
+                            )
+                          }
                         >
-                          Analyze Repository
+                          {analyzingRepoId === repo.id ? 'Analyzing...' : 'Analyze Repository'}
                         </Button>
                       </div>
                     </Card>

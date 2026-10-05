@@ -162,6 +162,94 @@ export const githubService = {
       updated_at: data.updated_at,
     };
   },
+
+  /**
+   * Fetches the complete git tree for a repository
+   */
+  async getRepoTree(accessToken, owner, repo, branch = 'main') {
+    // Attempt tree by branch name directly
+    let response = await fetch(
+      `${config.github.apiBaseUrl}/repos/${owner}/${repo}/git/trees/${encodeURIComponent(branch)}?recursive=1`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/vnd.github.v3+json',
+          'User-Agent': 'AI-Code-Reviewer',
+        },
+      }
+    );
+
+    // If branch name fails (e.g., master instead of main), look up commit SHA
+    if (!response.ok && (response.status === 404 || response.status === 422)) {
+      const commitRes = await fetch(
+        `${config.github.apiBaseUrl}/repos/${owner}/${repo}/commits/${encodeURIComponent(branch)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            Accept: 'application/vnd.github.v3+json',
+            'User-Agent': 'AI-Code-Reviewer',
+          },
+        }
+      );
+
+      if (commitRes.ok) {
+        const commitData = await commitRes.json();
+        const treeSha = commitData.commit?.tree?.sha;
+        if (treeSha) {
+          response = await fetch(
+            `${config.github.apiBaseUrl}/repos/${owner}/${repo}/git/trees/${treeSha}?recursive=1`,
+            {
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                Accept: 'application/vnd.github.v3+json',
+                'User-Agent': 'AI-Code-Reviewer',
+              },
+            }
+          );
+        }
+      }
+    }
+
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(`Failed to fetch git tree for ${owner}/${repo} (${branch}): ${response.status} ${err}`);
+    }
+
+    const data = await response.json();
+    return data.tree || [];
+  },
+
+  /**
+   * Fetches raw text content of a single source file
+   */
+  async getRawFileContent(accessToken, owner, repo, filePath, ref = 'main') {
+    const encodedPath = filePath
+      .split('/')
+      .map((segment) => encodeURIComponent(segment))
+      .join('/');
+
+    const response = await fetch(
+      `${config.github.apiBaseUrl}/repos/${owner}/${repo}/contents/${encodedPath}?ref=${encodeURIComponent(ref)}`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/vnd.github.raw',
+          'User-Agent': 'AI-Code-Reviewer',
+        },
+      }
+    );
+
+    if (response.status === 404) {
+      return null;
+    }
+
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(`Failed to fetch file ${filePath}: ${response.status} ${err}`);
+    }
+
+    return await response.text();
+  },
 };
 
 export default githubService;

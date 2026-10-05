@@ -46,6 +46,35 @@ export interface CodeIssue {
   fixedCodeSnippet?: string;
 }
 
+export interface ReviewMetrics {
+  codeQuality: number;
+  security: number;
+  performance: number;
+  maintainability: number;
+}
+
+export interface ReviewResult {
+  summary: string;
+  score: number;
+  metrics: ReviewMetrics;
+  issues: CodeIssue[];
+  analyzedFilesCount: number;
+  repository?: {
+    id?: number;
+    owner: string;
+    name: string;
+    full_name?: string;
+    default_branch?: string;
+    targetBranch?: string;
+    html_url?: string;
+    stars?: number;
+    forks?: number;
+    language?: string;
+  };
+  timestamp?: string;
+  cached?: boolean;
+}
+
 export interface Repository {
   id: string;
   name: string;

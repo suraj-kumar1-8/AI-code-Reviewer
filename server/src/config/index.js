@@ -15,6 +15,12 @@ export const config = {
     apiBaseUrl: 'https://api.github.com',
     scopes: ['read:user', 'user:email', 'repo'].join(' '),
   },
+  ai: {
+    geminiApiKey: process.env.GEMINI_API_KEY || '',
+    openaiApiKey: process.env.OPENAI_API_KEY || '',
+    geminiModel: process.env.GEMINI_MODEL || 'gemini-2.0-flash',
+    openaiModel: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+  },
 };
 
 export default config;

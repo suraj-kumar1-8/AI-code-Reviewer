@@ -1,4 +1,4 @@
-import type { GitHubUser, GitHubRepo } from '../types';
+import type { GitHubUser, GitHubRepo, ReviewResult } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -114,6 +114,59 @@ export const api = {
     if (!res.ok) {
       const errorData = await res.json().catch(() => ({}));
       throw new Error(errorData.error || `Failed to fetch repository ${owner}/${repo}`);
+    }
+
+    return await res.json();
+  },
+
+  /**
+   * POST /api/reviews/analyze
+   * Analyzes repository files using AI code inspection
+   */
+  async analyzeRepo(params: {
+    owner: string;
+    repo: string;
+    branch?: string;
+    force?: boolean;
+  }): Promise<ReviewResult & { success: boolean; error?: string }> {
+    const res = await fetch(`${API_BASE_URL}/reviews/analyze`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify(params),
+    });
+
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.message || errorData.error || `Analysis failed: ${res.statusText}`);
+    }
+
+    return await res.json();
+  },
+
+  /**
+   * GET /api/reviews/:owner/:repo
+   * Retrieves existing or cached review
+   */
+  async getReview(
+    owner: string,
+    repo: string,
+    branch?: string
+  ): Promise<ReviewResult & { success: boolean; error?: string }> {
+    const query = branch ? `?branch=${encodeURIComponent(branch)}` : '';
+    const res = await fetch(`${API_BASE_URL}/reviews/${owner}/${repo}${query}`, {
+      credentials: 'include',
+      headers: {
+        Accept: 'application/json',
+      },
+    });
+
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.message || errorData.error || `Failed to get review: ${res.statusText}`);
     }
 
     return await res.json();

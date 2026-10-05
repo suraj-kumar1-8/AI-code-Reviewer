@@ -1,4 +1,3 @@
-// Prepared for Day 2: Authentication & GitHub OAuth controllers
-export const authController = {};
-export const repoController = {};
-export const reviewController = {};
+export { authController } from './authController.js';
+export { repoController } from './repoController.js';
+export { reviewController } from './reviewController.js';
