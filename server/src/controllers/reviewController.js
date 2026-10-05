@@ -1,5 +1,5 @@
 import { repoFileFetcher } from '../services/repoFileFetcher.js';
-import { aiService } from '../services/aiService.js';
+import { geminiService } from '../services/geminiService.js';
 import { githubService } from '../services/githubService.js';
 
 // In-memory review cache to avoid repeated expensive AI and API requests
@@ -62,8 +62,8 @@ export const reviewController = {
 
       console.log(`[reviewController] Fetched ${files.length} code files out of ${totalFilesConsidered} total files.`);
 
-      // 2. Run AI Code Review
-      const reviewResult = await aiService.analyzeCodebase({
+      // 2. Run Gemini AI Code Review
+      const reviewResult = await geminiService.analyzeCodebase({
         repository: repoDetails,
         files,
       });
