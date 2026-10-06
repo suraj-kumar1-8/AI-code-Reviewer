@@ -72,9 +72,16 @@ export const reviewController = {
       const payload = {
         summary: reviewResult.summary,
         score: reviewResult.score,
+        stats: reviewResult.stats || { critical: 0, high: 0, medium: 0, low: 0 },
         metrics: reviewResult.metrics,
         issues: reviewResult.issues,
         analyzedFilesCount: reviewResult.analyzedFilesCount,
+        sourceFiles: files.map((f) => ({
+          path: f.path,
+          language: f.language,
+          content: f.content,
+          lineCount: f.lineCount,
+        })),
         repository: {
           id: repoDetails.id,
           owner: repoDetails.owner,

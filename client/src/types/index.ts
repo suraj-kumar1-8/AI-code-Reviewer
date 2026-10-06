@@ -1,7 +1,16 @@
 import type { ReactNode } from 'react';
 
-export type IssueSeverity = 'critical' | 'high' | 'medium' | 'low';
-export type IssueCategory = 'security' | 'bugs' | 'performance' | 'quality';
+export type IssueSeverity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'critical' | 'high' | 'medium' | 'low';
+export type IssueCategory =
+  | 'Security'
+  | 'Bugs'
+  | 'Performance'
+  | 'Quality'
+  | 'Error Handling'
+  | 'Architecture'
+  | 'Bad Practices'
+  | 'Maintainability'
+  | string;
 
 export interface GitHubUser {
   id: number;
@@ -38,12 +47,23 @@ export interface CodeIssue {
   title: string;
   category: IssueCategory;
   severity: IssueSeverity;
+  file?: string;
   filePath: string;
+  line?: number;
   lineNumber: number;
   description: string;
+  impact?: string;
   recommendation: string;
+  suggestedFix?: string;
   codeSnippet?: string;
   fixedCodeSnippet?: string;
+}
+
+export interface ReviewStats {
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
 }
 
 export interface ReviewMetrics {
@@ -53,12 +73,21 @@ export interface ReviewMetrics {
   maintainability: number;
 }
 
+export interface SourceFile {
+  path: string;
+  language: string;
+  content: string;
+  lineCount: number;
+}
+
 export interface ReviewResult {
   summary: string;
   score: number;
+  stats?: ReviewStats;
   metrics: ReviewMetrics;
   issues: CodeIssue[];
   analyzedFilesCount: number;
+  sourceFiles?: SourceFile[];
   repository?: {
     id?: number;
     owner: string;

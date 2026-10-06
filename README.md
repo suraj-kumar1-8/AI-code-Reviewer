@@ -40,29 +40,46 @@
   - Ignores `.git`, `node_modules`, `dist`, `build`, binaries, and lockfiles.
   - Filters and prioritizes common programming language files (`.js`, `.ts`, `.jsx`, `.tsx`, `.py`, `.java`, `.go`, `.rs`, `.c`, `.cpp`, `.cs`, `.php`, `.rb`, etc.).
   - Enforces safe file-size limit (50 KB/file) and total file budget to prevent memory flooding.
-- **Backend AI Review Architecture (`aiService`)**:
-  - Reusable AI code review service supporting **Google Gemini API** (`gemini-2.0-flash`) and **OpenAI API** (`gpt-4o-mini`).
-  - Resilient AST/heuristic static security and bug analysis engine fallback when API keys are not provided or quotas are reached.
+- **Backend AI Review Architecture (`geminiService`)**:
+  - Reusable AI code review service supporting **Google Gemini API** (`gemini-3.7-flash` with fallback cascade to `gemini-3.5-flash`, `gemini-flash-latest`, and `gemini-3.1-flash-lite`).
+  - Resilient static security and bug analysis engine fallback when API quotas or timeouts occur.
   - In-memory review cache to optimize repeat inspections and prevent duplicate AI requests.
-  - Inspects code across 6 pillars:
-    1. Bugs & Logic Errors
-    2. Security Vulnerabilities (injection, hardcoded secrets, auth risks)
-    3. Performance Bottlenecks & Synchronous I/O
-    4. Code Quality & Formatting
-    5. Maintainability & Architecture
-    6. Best Practices
-- **Structured JSON Schema**:
-  - Returns `summary`, `score` (0-100), `metrics` (`codeQuality`, `security`, `performance`, `maintainability`), and structured `issues` list with `severity`, `category`, `file`, `line`, `title`, `description`, `recommendation`, `codeSnippet`, and `fixedCodeSnippet`.
-- **Interactive Review Page (`/review/:id` & `/review/:owner/:repo`)**:
-  - Executive AI summary card with file counts.
-  - Health score circular gauge with status verdict.
+
+### ✅ Day 4 — Advanced Developer-Grade AI Code Review
+- **8-Dimension Issue Detection**:
+  1. **Security Vulnerabilities**: Injection (SQL/Cmd/LDAP), hardcoded secrets/tokens, broken auth/session flaws, XSS, unsafe deserialization.
+  2. **Bugs & Logical Errors**: Race conditions, null/undefined dereferences, off-by-one errors, infinite loops, broken Boolean conditions.
+  3. **Performance Issues**: Synchronous blocking operations in async workflows, unbounded memory allocations, algorithmic complexity ($O(n^2)$), duplicate network requests.
+  4. **Code Quality**: Weak typing, variable shadowing, magic numbers, poor naming conventions, single responsibility violations.
+  5. **Maintainability**: High coupling, duplicate logic (DRY), leaky abstractions, rigid component boundaries.
+  6. **Error Handling**: Empty/silent catch blocks, swallowed rejections, missing cleanup in `finally`, lack of centralized error middleware.
+  7. **Bad Practices**: Dangerous functions (`eval()`, dynamic `Function`), innerHTML DOM manipulation, deprecated APIs.
+  8. **Architecture Issues**: Circular dependencies, transport/business layer coupling, untyped API contracts.
+- **Line-Level Findings & Structured Output**:
+  - Every issue includes: `severity` (CRITICAL, HIGH, MEDIUM, LOW), `category`, `title`, `file`, `line`, `description`, `impact`, `recommendation`, `suggestedFix`, and `codeSnippet`.
+  - Strict JSON schema with top-level `summary`, `score`, and `stats: { critical, high, medium, low }`.
+  - Resilient JSON normalization with auto-repair and fallback to prevent parsing failures.
+- **Enhanced Review UI**:
+  - Overall health score gauge (0-100) with visual verdict badges and descriptive explanations.
   - Sub-metrics breakdown (Code Quality, Security, Performance, Maintainability).
-  - Severity breakdown pills (Critical, High, Medium, Low).
-  - Category filter tabs (Overview, Security, Bugs, Performance, Code Quality).
-  - Severity filter dropdown.
-  - Code inspection modal displaying detected issue code, diagnosis, and recommended refactor snippet.
-  - Animated scanning loading state, empty state, and error handling with retry actions.
-  - Duplicate request prevention on "Analyze Repository" triggers.
+  - Interactive **Severity Breakdown Pills** (Critical, High, Medium, Low) that function as instant toggle filters.
+  - **Multi-Criteria Filter Toolbar**:
+    - Real-time search by title, description, impact, recommendation, or file path.
+    - Severity dropdown (All, Critical, High, Medium, Low).
+    - Category tabs (All, Security, Bugs, Performance, Quality, Error Handling, Architecture).
+    - File dropdown (filters issues to specific source files with count indicators).
+    - Quick "Reset All Filters" action.
+  - Expandable Issue Cards with impact highlight badges, recommendation guidance, and expand/collapse all controls.
+- **Interactive Code Viewer (`CodeViewer.tsx`)**:
+  - Displays relevant source-code lines with line number gutters.
+  - Highlights problematic lines with red accent markers and vulnerability tags.
+  - Side-by-side (Diff) or Stacked layout switcher for comparing original code vs. suggested refactored fixes.
+  - "Copy Fix" button with animated checkmark feedback.
+  - Seamlessly available both inline inside expanded issue cards and in a full-screen inspection modal.
+- **Grounded Gemini Prompting**:
+  - Enforces strict grounding rules: AI only analyzes provided source files and lines, preventing hallucinations.
+  - Distinguishes severe runtime bugs and vulnerabilities from optional styling opinions.
+  - Generates ready-to-paste, developer-friendly fixes.
 
 ---
 

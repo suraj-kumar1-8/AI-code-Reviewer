@@ -1,5 +1,13 @@
 import { config } from '../config/index.js';
 
+async function handleGitHubError(response, actionName) {
+  if (response.status === 401) {
+    throw new Error('Your GitHub authorization session has expired or is invalid. Please sign in with GitHub again.');
+  }
+  const err = await response.text();
+  throw new Error(`Failed to ${actionName}: ${response.status} ${err}`);
+}
+
 export const githubService = {
   /**
    * Generates the GitHub OAuth authorization URL
@@ -65,8 +73,7 @@ export const githubService = {
     });
 
     if (!response.ok) {
-      const err = await response.text();
-      throw new Error(`Failed to fetch user profile: ${response.status} ${err}`);
+      await handleGitHubError(response, 'fetch user profile');
     }
 
     const user = await response.json();
@@ -104,8 +111,7 @@ export const githubService = {
     });
 
     if (!response.ok) {
-      const err = await response.text();
-      throw new Error(`Failed to fetch repositories: ${response.status} ${err}`);
+      await handleGitHubError(response, 'fetch repositories');
     }
 
     const repos = await response.json();
@@ -142,8 +148,7 @@ export const githubService = {
     });
 
     if (!response.ok) {
-      const err = await response.text();
-      throw new Error(`Failed to fetch repo details: ${response.status} ${err}`);
+      await handleGitHubError(response, `fetch repo details for ${owner}/${repo}`);
     }
 
     const data = await response.json();
@@ -211,8 +216,7 @@ export const githubService = {
     }
 
     if (!response.ok) {
-      const err = await response.text();
-      throw new Error(`Failed to fetch git tree for ${owner}/${repo} (${branch}): ${response.status} ${err}`);
+      await handleGitHubError(response, `fetch git tree for ${owner}/${repo} (${branch})`);
     }
 
     const data = await response.json();
@@ -244,8 +248,7 @@ export const githubService = {
     }
 
     if (!response.ok) {
-      const err = await response.text();
-      throw new Error(`Failed to fetch file ${filePath}: ${response.status} ${err}`);
+      await handleGitHubError(response, `fetch file ${filePath}`);
     }
 
     return await response.text();
