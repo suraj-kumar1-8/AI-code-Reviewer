@@ -81,7 +81,15 @@ export async function initDb() {
   let client;
   try {
     client = await pool.connect();
-    console.log('[Database] Connecting to PostgreSQL at', connectionString.replace(/:[^:@]+@/, ':***@'));
+    if (useRdsIam) {
+      console.log(
+        `[Database] Connecting to PostgreSQL at ${RDS_HOST}:${RDS_PORT}/${RDS_DATABASE} using IAM`
+      );
+    } else {
+      console.log(
+        '[Database] Connecting to PostgreSQL using DATABASE_URL authentication'
+      );
+    }
 
     // 1. Enable pgvector extension
     await client.query('CREATE EXTENSION IF NOT EXISTS vector;');
