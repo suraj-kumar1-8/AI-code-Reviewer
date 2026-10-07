@@ -1,177 +1,376 @@
-# AI Code Reviewer ✦
+# AI GitHub Code Reviewer
 
-> An AI-powered GitHub code review platform that analyzes repositories, detects bugs and security vulnerabilities, evaluates code quality & performance, and provides intelligent codebase insights.
-
----
-
-## 🚀 Progress & Milestones
-
-### ✅ Day 1 — Foundation & UI Design
-- Modern, responsive SaaS Landing Page matching the approved dark developer design.
-- Design System & Color Palette (Deep dark background `#080F1A`, Indigo `#6366F1`, Purple `#8B5CF6`, Cyan `#06B6D4`).
-- Routing structure (`/`, `/login`, `/dashboard`, `/review/:id`).
-- Interactive code review preview, issue category tabs, and modal inspection views.
-
-### ✅ Day 2 — GitHub OAuth & Repository Integration
-- **Real GitHub OAuth Flow**:
-  - Secure authorization code grant exchange on the Express backend.
-  - Client ID & Secret kept securely in `server/.env`.
-  - GitHub access tokens never exposed to frontend code or `localStorage`.
-- **Authentication & Protected Routes**:
-  - Encrypted, HTTP-only JWT session cookie (`acr_session`).
-  - Session verification endpoint (`/api/auth/me`).
-  - Route guard (`ProtectedRoute`) protecting `/dashboard` and `/review/*`.
-  - Secure session termination and logout (`/api/auth/logout`).
-- **GitHub Profile Integration**:
-  - Displays authenticated user's avatar, username, name, and bio in Navbar, Sidebar, and Dashboard header.
-- **Real Repositories via GitHub REST API**:
-  - Fetches user repositories directly from GitHub API (`/api/repos`).
-  - Displays name, owner, description, primary language with color indicators, star count, fork count, visibility (Public/Private), and last updated date.
-- **Repository Dashboard**:
-  - Live search by repo name, language, or description.
-  - Filter chips for **All**, **Public**, and **Private** repositories.
-  - Sort by Recently Updated, Most Stars, or Alphabetical.
-  - Pulsing loading skeletons during network fetch.
-  - Informative empty and error states with quick retry/refresh actions.
-
-### ✅ Day 3 — Real Repository Analysis & AI Code Review
-- **Repository File Extraction (`repoFileFetcher`)**:
-  - Fetches repository tree and raw source code files using GitHub REST API.
-  - Ignores `.git`, `node_modules`, `dist`, `build`, binaries, and lockfiles.
-  - Filters and prioritizes common programming language files (`.js`, `.ts`, `.jsx`, `.tsx`, `.py`, `.java`, `.go`, `.rs`, `.c`, `.cpp`, `.cs`, `.php`, `.rb`, etc.).
-  - Enforces safe file-size limit (50 KB/file) and total file budget to prevent memory flooding.
-- **Backend AI Review Architecture (`geminiService`)**:
-  - Reusable AI code review service supporting **Google Gemini API** (`gemini-3.7-flash` with fallback cascade to `gemini-3.5-flash`, `gemini-flash-latest`, and `gemini-3.1-flash-lite`).
-  - Resilient static security and bug analysis engine fallback when API quotas or timeouts occur.
-  - In-memory review cache to optimize repeat inspections and prevent duplicate AI requests.
-
-### ✅ Day 4 — Advanced Developer-Grade AI Code Review
-- **8-Dimension Issue Detection**:
-  1. **Security Vulnerabilities**: Injection (SQL/Cmd/LDAP), hardcoded secrets/tokens, broken auth/session flaws, XSS, unsafe deserialization.
-  2. **Bugs & Logical Errors**: Race conditions, null/undefined dereferences, off-by-one errors, infinite loops, broken Boolean conditions.
-  3. **Performance Issues**: Synchronous blocking operations in async workflows, unbounded memory allocations, algorithmic complexity ($O(n^2)$), duplicate network requests.
-  4. **Code Quality**: Weak typing, variable shadowing, magic numbers, poor naming conventions, single responsibility violations.
-  5. **Maintainability**: High coupling, duplicate logic (DRY), leaky abstractions, rigid component boundaries.
-  6. **Error Handling**: Empty/silent catch blocks, swallowed rejections, missing cleanup in `finally`, lack of centralized error middleware.
-  7. **Bad Practices**: Dangerous functions (`eval()`, dynamic `Function`), innerHTML DOM manipulation, deprecated APIs.
-  8. **Architecture Issues**: Circular dependencies, transport/business layer coupling, untyped API contracts.
-- **Line-Level Findings & Structured Output**:
-  - Every issue includes: `severity` (CRITICAL, HIGH, MEDIUM, LOW), `category`, `title`, `file`, `line`, `description`, `impact`, `recommendation`, `suggestedFix`, and `codeSnippet`.
-  - Strict JSON schema with top-level `summary`, `score`, and `stats: { critical, high, medium, low }`.
-  - Resilient JSON normalization with auto-repair and fallback to prevent parsing failures.
-- **Enhanced Review UI**:
-  - Overall health score gauge (0-100) with visual verdict badges and descriptive explanations.
-  - Sub-metrics breakdown (Code Quality, Security, Performance, Maintainability).
-  - Interactive **Severity Breakdown Pills** (Critical, High, Medium, Low) that function as instant toggle filters.
-  - **Multi-Criteria Filter Toolbar**:
-    - Real-time search by title, description, impact, recommendation, or file path.
-    - Severity dropdown (All, Critical, High, Medium, Low).
-    - Category tabs (All, Security, Bugs, Performance, Quality, Error Handling, Architecture).
-    - File dropdown (filters issues to specific source files with count indicators).
-    - Quick "Reset All Filters" action.
-  - Expandable Issue Cards with impact highlight badges, recommendation guidance, and expand/collapse all controls.
-- **Interactive Code Viewer (`CodeViewer.tsx`)**:
-  - Displays relevant source-code lines with line number gutters.
-  - Highlights problematic lines with red accent markers and vulnerability tags.
-  - Side-by-side (Diff) or Stacked layout switcher for comparing original code vs. suggested refactored fixes.
-  - "Copy Fix" button with animated checkmark feedback.
-  - Seamlessly available both inline inside expanded issue cards and in a full-screen inspection modal.
-- **Grounded Gemini Prompting**:
-  - Enforces strict grounding rules: AI only analyzes provided source files and lines, preventing hallucinations.
-  - Distinguishes severe runtime bugs and vulnerabilities from optional styling opinions.
-  - Generates ready-to-paste, developer-friendly fixes.
+> **Production-Grade AI Code Review, Intelligent Codebase Insights (RAG), and Automated Pull Request Auditing Engine.**  
+> Powered by **Google Gemini AI**, **PostgreSQL + pgvector**, **GitHub REST API & Webhooks**, and a modern developer-first SaaS interface.
 
 ---
 
-## 🛠️ Clean Architecture
+## 📑 Table of Contents
+1. [Overview](#-overview)
+2. [Key Features](#-key-features)
+3. [Architecture & System Flow](#-architecture--system-flow)
+4. [Tech Stack](#-tech-stack)
+5. [Core Pipelines](#-core-pipelines)
+   - [GitHub OAuth Flow](#1-github-oauth-flow)
+   - [AI Code Review Flow](#2-ai-code-review-flow)
+   - [RAG Semantic Vector Search & Q&A](#3-rag-semantic-vector-search--qa)
+   - [GitHub Webhooks & PR Automation](#4-github-webhooks--pr-automation)
+6. [API Endpoints Reference](#-api-endpoints-reference)
+7. [Environment Configuration](#-environment-configuration)
+8. [Local Development Setup](#-local-development-setup)
+9. [Deployment Guide](#-deployment-guide)
+   - [Frontend Deployment (Vercel)](#frontend-deployment-vercel)
+   - [Backend Deployment (Render / Railway)](#backend-deployment-render--railway)
+   - [Database Setup (Cloud PostgreSQL + pgvector)](#database-setup-cloud-postgresql--pgvector)
+10. [Security & Isolation Standards](#-security--isolation-standards)
+11. [Screenshots & UI Showcase](#-screenshots--ui-showcase)
+12. [Future Improvements](#-future-improvements)
 
-The application strictly follows a decoupled, layered architecture:
+---
 
-```
-[Client (React 19 + TypeScript)]
-      │
-      ▼
-[API Service Layer (client/src/services/api.ts)]
-      │  (HTTP / JSON with credentials: 'include')
-      ▼
-[Express Routes (server/src/routes/*.js)]
-      │
-      ▼
-[Controllers (server/src/controllers/reviewController.js)]
-      │
-      ▼
-[GitHub Service & Repository File Fetcher]
-      │  (GitHub REST API - Tree & Blobs)
-      ▼
-[AI Review Service (server/src/services/aiService.js)]
-      │
-      ├──> Google Gemini 2.0 Flash / OpenAI API
-      └──> Resilient Static Code Analysis Engine (Fallback)
+## 🌟 Overview
+
+**AI GitHub Code Reviewer** is an enterprise-grade developer productivity platform designed to eliminate code review bottlenecks, detect subtle runtime regressions, audit security vulnerabilities before deployment, and enable developers to perform semantic Q&A across entire repositories.
+
+By combining real-time GitHub OAuth integration, vector embeddings with PostgreSQL `pgvector`, and Google Gemini's reasoning models, the platform delivers actionable line-level code reviews, automated PR inspection comments, and zero-hallucination codebase question-answering.
+
+---
+
+## ⚡ Key Features
+
+- **GitHub OAuth 2.0 Integration**: Direct authorization with GitHub, encrypted HTTP-only session cookies, and user repository synchronization.
+- **8-Dimension AI Code Review Engine**: Evaluates code across Security, Bugs, Performance, Quality, Maintainability, Error Handling, Bad Practices, and Architecture with line-level findings and actionable code recommendations.
+- **Ask Your Codebase (RAG)**: Full-codebase vector search powered by PostgreSQL + `pgvector` with HNSW cosine distance indexing and grounded Gemini answering.
+- **Zero Hallucination Guardrails**: Cites exact source files, line ranges, and code snippets. If context is missing, it explicitly informs the user rather than guessing.
+- **GitHub Webhook Automation**: Receives and verifies `pull_request.opened`, `synchronize`, and `reopened` events with HMAC SHA-256 signatures.
+- **PR Diff Inspection & Auto-Commenting**: Automatically analyzes changed files in pull requests and posts structured review findings directly to GitHub pull request comments.
+- **Intelligent Caching & Deduplication**: Prevents repeated analysis of unchanged repositories and identical commit SHAs `(repository_id, pr_number, commit_sha)`.
+- **Gemini Rate Limiter Resilience**: Automatically detects HTTP 429 quota exhaustion, respects `retry-after` delays, and fails over to candidate generation models without failing reviews.
+- **Executive Real-Data Dashboard**: Real-time KPI metrics (Total Reviews, Risk Distribution, Average Health Score, Clean PR count) calculated directly from real database records.
+
+---
+
+## 🏛️ Architecture & System Flow
+
+```mermaid
+flowchart TB
+    subgraph Client ["Frontend (React 19 + TypeScript + Vite)"]
+        UI[Developer SaaS Dashboard]
+        AskUI[Ask Codebase RAG Chat]
+        PRUI[Pull Request Review Hub]
+    end
+
+    subgraph GitHub ["GitHub Platform"]
+        GH_OAuth[GitHub OAuth 2.0]
+        GH_API[GitHub REST API]
+        GH_Hooks[GitHub Webhook Deliveries]
+    end
+
+    subgraph Server ["Backend (Node.js + Express)"]
+        AuthCtrl[Auth Controller & JWT Cookies]
+        ReviewEngine[Review Engine & Rate Limiter]
+        Chunker[Code Chunker & Ingest Pipeline]
+        RAGService[RAG Engine]
+        WebhookCtrl[Webhook Controller & HMAC Verifier]
+    end
+
+    subgraph AI ["AI & Vector Services"]
+        GeminiFlash[Google Gemini 3.1 Flash Lite]
+        GeminiEmbed[gemini-embedding-001 (768-dim)]
+    end
+
+    subgraph DB ["Database (PostgreSQL + pgvector)"]
+        RepoTable[(repositories)]
+        ChunksTable[(code_chunks + HNSW Index)]
+        PRReviewsTable[(pr_reviews)]
+    end
+
+    UI -->|HTTP / Cookies| Server
+    AskUI -->|Vector Q&A| RAGService
+    PRUI -->|PR Management| ReviewEngine
+
+    GH_Hooks -->|POST HMAC SHA-256| WebhookCtrl
+    Server -->|Sync Repos & Diffs| GH_API
+    Client -->|OAuth Redirect| GH_OAuth
+
+    RAGService -->|Generate Embeddings| GeminiEmbed
+    RAGService -->|Cosine Distance <=>| ChunksTable
+    RAGService -->|Context + Prompt| GeminiFlash
+
+    ReviewEngine -->|Analyze Diff/Files| GeminiFlash
+    Chunker -->|Store Chunks & Embeddings| DB
+    WebhookCtrl -->|Deduplicate & Persist| PRReviewsTable
 ```
 
 ---
 
-## 🔑 Environment & AI Setup Guide
+## 🧰 Tech Stack
 
-To configure GitHub OAuth and the AI engine, edit [`server/.env`](file:///Users/surajkumar/AI%20Code%20Reviewer/server/.env):
+| Layer | Technologies |
+| :--- | :--- |
+| **Frontend** | React 19, TypeScript, Vite, Tailwind CSS v4, Lucide Icons |
+| **Backend** | Node.js (ESM), Express 4, Cookie-Parser, CORS, JWT |
+| **Database** | PostgreSQL 16 + `pgvector` (Vector similarity search with HNSW indexes) |
+| **AI Models** | Google Gemini (`gemini-3.1-flash-lite`, `gemini-embedding-001`) via `@google/genai` |
+| **Integrations** | GitHub REST API v3, GitHub Webhooks (HMAC SHA-256) |
+| **Deployment** | Vercel (Client SPA), Render / Railway (Backend API), Neon / Supabase (PostgreSQL) |
+
+---
+
+## 🔄 Core Pipelines
+
+### 1. GitHub OAuth Flow
+```
+User Clicks "Sign in with GitHub"
+  │
+  ▼
+[GET /api/auth/github] ──> Redirects to GitHub OAuth consent dialog
+  │
+  ▼
+[GET /api/auth/github/callback]
+  ├── Exchange auth code for GitHub access token
+  ├── Retrieve user profile from GitHub API
+  ├── Issue signed JWT in HTTP-only, secure, sameSite='lax' cookie
+  └── Redirect to /dashboard
+```
+
+### 2. AI Code Review Flow
+1. **Extraction**: Fetches tree structure and prioritizes code files (`.ts`, `.js`, `.py`, `.go`, `.rs`, `.java`, etc.), filtering out binaries, vendor directories, and lockfiles.
+2. **Analysis**: Gemini inspects the codebase across 8 dimensions (Security, Bugs, Performance, Quality, etc.).
+3. **Structured Normalization**: JSON parser extracts top-level health score, summary, and findings with line numbers and recommendations.
+4. **Resilience**: If Gemini hits 429 quota limits, `modelRateLimiter` triggers fallback models or resilient static lint analysis.
+
+### 3. RAG Semantic Vector Search & Q&A
+```
+Developer Query: "Where is authentication handled?"
+  │
+  ▼
+[Embedding Service] ──> Generates 768-dimensional vector via gemini-embedding-001
+  │
+  ▼
+[PostgreSQL + pgvector] ──> Executes HNSW cosine distance search (ORDER BY embedding <=> query_vec)
+  │
+  ▼
+[Top K Relevant Code Chunks] ──> Assembled with file paths and line ranges
+  │
+  ▼
+[Gemini Prompt Formulation] ──> Strict grounding instructions (zero hallucination)
+  │
+  ▼
+Output: Grounded technical answer with clickable source references and code snippets
+```
+
+### 4. GitHub Webhooks & PR Automation
+- **Signature Verification**: Verifies `x-hub-signature-256` header against `GITHUB_WEBHOOK_SECRET` using timing-safe comparisons.
+- **Event Filtering**: Only processes `opened`, `synchronize`, and `reopened` actions.
+- **Deduplication Key**: Composite key `(repository_id, pr_number, commit_sha)` prevents processing the same commit multiple times.
+- **Diff Fetching**: Obtains pull request file diffs, bounds patch length to prevent token overflow, and reviews additions.
+- **PR Comments**: Posts executive review results and line observations directly to the pull request on GitHub.
+
+---
+
+## 📡 API Endpoints Reference
+
+| Method | Endpoint | Description | Auth Required |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/health` | Server status, DB health & OAuth configuration | No |
+| `GET` | `/api/auth/github` | Redirects to GitHub OAuth authorize page | No |
+| `GET` | `/api/auth/github/callback` | OAuth code exchange and cookie issuance | No |
+| `GET` | `/api/auth/me` | Fetch authenticated session profile | Yes (Cookie) |
+| `POST` | `/api/auth/logout` | Clears session cookie | Yes (Cookie) |
+| `GET` | `/api/repos` | List authenticated user's repositories | Yes (Cookie) |
+| `GET` | `/api/repos/:owner/:repo` | Fetch single repository details | Yes (Cookie) |
+| `POST` | `/api/reviews/analyze` | Run full repository AI code review | Yes (Cookie) |
+| `GET` | `/api/reviews/:owner/:repo` | Get cached repository review | Yes (Cookie) |
+| `POST` | `/api/codebase/index` | Chunk & index repository into pgvector | Yes (Cookie/Token) |
+| `POST` | `/api/codebase/ask` | Ask semantic question to indexed codebase | Yes (Cookie/Token) |
+| `GET` | `/api/codebase/status` | Check repository indexing status & chunk count | No |
+| `GET` | `/api/codebase/repositories` | List all indexed repositories in database | No |
+| `POST` | `/api/webhooks/github` | Receive & process GitHub pull request webhooks | HMAC Header |
+| `GET` | `/api/reviews/pr` | List pull request reviews from database | No |
+| `GET` | `/api/reviews/pr/:owner/:repo/:prNumber` | Get single PR review details | No |
+| `POST` | `/api/reviews/pr/analyze` | Trigger on-demand review for public or private PR | Optional Token |
+
+---
+
+## ⚙️ Environment Configuration
+
+Create a `.env` file in the root or `server/` directory:
 
 ```env
+# Server Network
 PORT=5001
 NODE_ENV=development
-CLIENT_URL=http://localhost:5173
-JWT_SECRET=ai-code-reviewer-super-secret-jwt-key-2026
 
-# GitHub OAuth App Credentials
+# Frontend Client URL (used for CORS and OAuth redirects)
+CLIENT_URL=http://localhost:5173
+
+# JWT Session Encryption
+JWT_SECRET=your_super_secret_jwt_encryption_key_min_32_chars
+
+# GitHub OAuth Application
+# Create at: https://github.com/settings/developers
 GITHUB_CLIENT_ID=your_github_client_id
 GITHUB_CLIENT_SECRET=your_github_client_secret
 GITHUB_CALLBACK_URL=http://localhost:5001/api/auth/github/callback
 
-# AI Code Review Engine (Optional: Generative AI Reasoning)
-# 1. Google Gemini (Recommended): Get key from https://aistudio.google.com/
-GEMINI_API_KEY=your_gemini_api_key_here
-GEMINI_MODEL=gemini-2.0-flash
+# GitHub Webhook HMAC Secret
+GITHUB_WEBHOOK_SECRET=your_github_webhook_secret_for_hmac
 
-# 2. OpenAI (Optional Alternative): Get key from https://platform.openai.com/
-OPENAI_API_KEY=your_openai_api_key_here
-OPENAI_MODEL=gpt-4o-mini
+# Google Gemini AI Configuration
+GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_MODEL=gemini-3.1-flash-lite
+GEMINI_EMBEDDING_MODEL=gemini-embedding-001
+AI_PROVIDER=gemini
+
+# PostgreSQL + pgvector Database
+DATABASE_URL=postgresql://postgres:postgres@localhost:5433/code_reviewer
 ```
 
-> **Note:** If no AI API key is set, the application automatically uses its built-in static security and bug analysis engine to scan the real code, ensuring 100% functionality out of the box!
+Client configuration (`client/.env`):
+```env
+# Optional in development (uses Vite proxy). Set in production:
+# VITE_API_URL=https://your-api.onrender.com/api
+VITE_API_URL=/api
+```
 
 ---
 
-## ⚡ Running the Project Locally
+## 💻 Local Development Setup
 
-### 1. Start the Backend API Server
+### 1. Prerequisites
+- **Node.js**: v18 or v20+
+- **Docker**: For running PostgreSQL with `pgvector` locally
+- **Google Gemini API Key**: From [Google AI Studio](https://aistudio.google.com/app/apikey)
+- **GitHub OAuth App**: From [GitHub Developer Settings](https://github.com/settings/developers)
+
+### 2. Start PostgreSQL + pgvector (Docker)
+```bash
+docker run -d \
+  --name ai_code_reviewer_pgvector \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_PASSWORD=postgres \
+  -e POSTGRES_DB=code_reviewer \
+  -p 5433:5432 \
+  pgvector/pgvector:pg16
+```
+
+### 3. Configure GitHub OAuth App
+1. Navigate to **GitHub Settings** $\rightarrow$ **Developer settings** $\rightarrow$ **OAuth Apps** $\rightarrow$ **New OAuth App**.
+2. Set:
+   - **Application name**: `AI GitHub Code Reviewer`
+   - **Homepage URL**: `http://localhost:5173`
+   - **Authorization callback URL**: `http://localhost:5001/api/auth/github/callback`
+3. Click **Register application**.
+4. Generate a **Client Secret** and copy both `Client ID` and `Client Secret` into your `.env`.
+
+### 4. Configure Google Gemini API
+1. Visit [Google AI Studio](https://aistudio.google.com/app/apikey).
+2. Click **Create API key** and copy it.
+3. Set `GEMINI_API_KEY=your_key` in your `.env`.
+
+### 5. Configure GitHub Webhook (Optional for local, required for live PR auto-reviews)
+1. In your GitHub repository, go to **Settings** $\rightarrow$ **Webhooks** $\rightarrow$ **Add webhook**.
+2. Set:
+   - **Payload URL**: `https://<your-public-url>/api/webhooks/github` (use [smee.io](https://smee.io) or ngrok for local development)
+   - **Content type**: `application/json`
+   - **Secret**: Any secure random string matching `GITHUB_WEBHOOK_SECRET` in `.env`
+   - **Events**: Select **Let me select individual events** and check **Pull requests**.
+
+### 6. Install Dependencies
+```bash
+# In project root
+npm install
+```
+
+### 7. Start Backend Server
 ```bash
 cd server
-npm install
 npm run dev
 # Server listens on http://localhost:5001
 ```
 
-### 2. Start the Frontend Client
-In a separate terminal:
+### 8. Start Frontend Client
 ```bash
 cd client
-npm install
 npm run dev
-# Client runs on http://localhost:5173
+# Vite runs on http://localhost:5173
 ```
 
-### 3. Open in Browser
-Visit **[http://localhost:5173](http://localhost:5173)**:
-1. Click **Sign In** $\rightarrow$ **Continue with GitHub**.
-2. Authorize via GitHub OAuth.
-3. On the Dashboard, browse your real GitHub repositories.
-4. Click **Analyze Repository** on any repository card.
-5. The review page will fetch the repository source tree, analyze the files with AI, and present executive summaries, health metrics, issue breakdowns, and refactor suggestions!
+### 9. Automated Verification Test Suite
+Run the comprehensive Day 7 audit test suite:
+```bash
+node server/scripts/run-day7-audit.js
+```
 
 ---
 
-## 🔒 Security Standards
+## 🚀 Deployment Guide
 
-- **Zero Client Credential Exposure**: Neither GitHub tokens nor AI API keys are ever sent to the browser or stored in `localStorage`.
-- **Untrusted Code Isolation**: The application strictly reads static text files over the GitHub API. It **never** clones, executes, evaluates, or runs untrusted repository code.
-- **Input Sanitization**: Repository owner, name, and branch parameters are rigorously validated with strict regex patterns to prevent path traversal or injection.
-- **Rate Limit & Size Guards**: Source files are restricted to safe file-size thresholds (50 KB per file) and a maximum total file budget to prevent memory exhaustion and API quota abuse.
+### Frontend Deployment (Vercel)
+1. Push your repository to GitHub.
+2. In Vercel, import the project and set the **Root Directory** to `client`.
+3. Set **Framework Preset** to `Vite`.
+4. Configure Environment Variables:
+   - `VITE_API_URL`: `https://<your-backend-domain>/api`
+5. Single-Page Application routing is automatically handled via `client/vercel.json`.
+
+### Backend Deployment (Render / Railway)
+1. **Using Render Blueprint (`render.yaml`)**:
+   - In Render, click **New** $\rightarrow$ **Blueprint** and link your repository.
+   - Render automatically provisions the web service and PostgreSQL database.
+2. **Manual Web Service Setup**:
+   - Environment: `Node`
+   - Root Directory: `server`
+   - Build Command: `npm install --production`
+   - Start Command: `npm start`
+   - Environment Variables:
+     - `PORT`: `10000`
+     - `NODE_ENV`: `production`
+     - `CLIENT_URL`: `https://<your-frontend-domain>.vercel.app`
+     - `GITHUB_CLIENT_ID`: Your OAuth App Client ID
+     - `GITHUB_CLIENT_SECRET`: Your OAuth App Client Secret
+     - `GITHUB_CALLBACK_URL`: `https://<your-backend-domain>/api/auth/github/callback`
+     - `GITHUB_WEBHOOK_SECRET`: Your webhook HMAC secret
+     - `GEMINI_API_KEY`: Your Gemini API Key
+     - `GEMINI_MODEL`: `gemini-3.1-flash-lite`
+     - `DATABASE_URL`: Connection string to your cloud PostgreSQL database
+
+### Database Setup (Cloud PostgreSQL + pgvector)
+Compatible with **Neon**, **Supabase**, **Render Postgres**, or **AWS Aurora**:
+1. Create a PostgreSQL 16+ instance.
+2. The server automatically runs schema migrations on startup, enabling the `vector` extension, creating tables, and establishing the HNSW index!
+
+---
+
+## 🔒 Security & Isolation Standards
+
+- **Untrusted Code Never Executed**: The system strictly treats code as static text data. It **never** invokes `eval()`, shell commands, compilers, or interpreters on repository files.
+- **Sealed Secrets**: All API keys, database credentials, and GitHub client secrets remain backend-only. Tokens are never exposed in logs or sent to the browser.
+- **Constant-Time HMAC Verification**: Webhooks are verified using `crypto.timingSafeEqual` to prevent timing attack vulnerabilities.
+- **Parameterized Queries**: All database interactions use parameterized placeholders (`$1`, `$2`), eliminating SQL injection vectors.
+- **HTTP-Only Cookies**: JWT authentication sessions are stored in HTTP-only, SameSite-protected cookies.
+
+---
+
+## 📸 Screenshots & UI Showcase
+
+- **Executive Dashboard**: Real-time KPI counters, Risk Distribution bars, PR Review Feed, and Connected Repositories.
+- **Interactive Review Workspace**: Line-level code inspection with severity tags, category filters, and suggested code patches.
+- **Ask Your Codebase (RAG)**: Chat interface grounded in pgvector embeddings with source citations and line numbers.
+- **Pull Request Review Hub**: Live audit history from GitHub webhooks with instant modal inspection.
+
+---
+
+## 🔮 Future Improvements
+
+- [ ] Automated GitHub Action wrapper for integration in CI/CD workflows.
+- [ ] Multi-turn interactive discussions directly within PR review comments.
+- [ ] Support for self-hosted local LLMs (Ollama / vLLM) as alternative review providers.
+- [ ] Automated PR autofix creation with one-click pull request generation.
+
+---
+
+## 📄 License
+MIT License. Built for modern software engineering teams.
+# AI-code-Reviewer
