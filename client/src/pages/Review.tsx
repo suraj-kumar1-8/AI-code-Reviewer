@@ -415,6 +415,19 @@ export const Review: React.FC = () => {
                 </Button>
               </a>
 
+              <Link to={`/ask/${repoCoords.owner}/${repoCoords.repo}`}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  leftIcon={<Sparkles className="w-3.5 h-3.5 text-indigo-400" />}
+                  title="Ask questions to this repository using RAG semantic search"
+                  className="border-indigo-500/30 text-indigo-300 hover:bg-indigo-500/10"
+                >
+                  <span className="hidden sm:inline">Ask Codebase</span>
+                  <span className="sm:hidden">Ask</span>
+                </Button>
+              </Link>
+
               <Button
                 variant="primary"
                 size="sm"

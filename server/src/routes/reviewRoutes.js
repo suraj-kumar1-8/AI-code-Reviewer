@@ -1,16 +1,19 @@
 import { Router } from 'express';
 import { reviewController } from '../controllers/reviewController.js';
-import { authMiddleware } from '../middleware/authMiddleware.js';
+import { prReviewController } from '../controllers/prReviewController.js';
+import { optionalAuthMiddleware } from '../middleware/optionalAuthMiddleware.js';
 
 const router = Router();
 
-// All review routes require authenticated GitHub session
-router.use(authMiddleware);
+router.use(optionalAuthMiddleware);
 
-// POST /api/reviews/analyze
+// Pull request review endpoints (Day 6) - placed before :owner/:repo to prevent collision
+router.get('/pr', prReviewController.listReviews);
+router.get('/pr/:owner/:repo/:prNumber', prReviewController.getReview);
+router.post('/pr/analyze', prReviewController.triggerReview);
+
+// Repository full review endpoints (Day 3-4)
 router.post('/analyze', reviewController.analyze);
-
-// GET /api/reviews/:owner/:repo
 router.get('/:owner/:repo', reviewController.getReview);
 
 export default router;

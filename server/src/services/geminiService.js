@@ -1,5 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 import { config } from '../config/index.js';
+import { modelRateLimiter } from './modelRateLimiter.js';
 
 /**
  * Builds the prompt sent to Gemini with numbered lines for exact line attribution
@@ -422,13 +423,16 @@ export const geminiService = {
     if (apiKey && apiKey.trim()) {
       try {
         console.log(`[geminiService] Calling Google Gemini API for ${repository.owner}/${repository.name}...`);
-        const modelName = config.ai.geminiModel || process.env.GEMINI_MODEL || 'gemini-3.7-flash';
+        const preferredModel = config.ai.geminiModel || process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
+        const fallbackList = ['gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-flash-latest'];
+        const candidateModels = modelRateLimiter.getCandidateModels(preferredModel, fallbackList);
 
-        // 1. Try with @google/genai SDK with 15s timeout
+        // 1. Try with @google/genai SDK on first available non-rate-limited model
+        const primaryModel = candidateModels[0] || preferredModel;
         try {
           const ai = new GoogleGenAI({ apiKey: apiKey.trim() });
           const sdkPromise = ai.models.generateContent({
-            model: modelName,
+            model: primaryModel,
             contents: prompt,
             config: {
               responseMimeType: 'application/json',
@@ -443,24 +447,22 @@ export const geminiService = {
           const response = await Promise.race([sdkPromise, timeoutPromise]);
 
           if (response && response.text) {
-            console.log(`[geminiService] Gemini SDK response received successfully using ${modelName}.`);
+            console.log(`[geminiService] Gemini SDK response received successfully using ${primaryModel}.`);
             return normalizeGeminiOutput(response.text, repository, files);
           }
         } catch (sdkErr) {
-          console.warn(`[geminiService] SDK call (${modelName}) error: ${sdkErr.message}. Trying candidate models via REST fallback...`);
+          const is429 = sdkErr.message?.includes('429') || sdkErr.message?.includes('RESOURCE_EXHAUSTED');
+          if (is429) {
+            const delay = modelRateLimiter.extractRetryDelay(sdkErr.message);
+            modelRateLimiter.markRateLimited(primaryModel, delay, '429 Quota Exhausted');
+          }
+          console.warn(`[geminiService] SDK call (${primaryModel}) error: ${sdkErr.message}. Trying candidate models via REST fallback...`);
         }
 
-        // 2. Direct REST Fallback (handles model variations with deduplication and 12s timeout)
-        const candidateModels = Array.from(new Set([
-          modelName,
-          'gemini-3.7-flash',
-          'gemini-3.5-flash',
-          'gemini-flash-latest',
-          'gemini-3.8-flash',
-          'gemini-3.1-flash-lite',
-        ]));
+        // 2. Direct REST Fallback (skipping any model marked 429 rate-limited)
+        const restCandidates = modelRateLimiter.getCandidateModels(candidateModels[1] || 'gemini-3.1-flash-lite', fallbackList);
 
-        for (const model of candidateModels) {
+        for (const model of restCandidates) {
           try {
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey.trim()}`;
             const res = await fetch(url, {
@@ -485,6 +487,10 @@ export const geminiService = {
               }
             } else {
               const errBody = await res.text();
+              if (res.status === 429) {
+                const delay = modelRateLimiter.extractRetryDelay(errBody);
+                modelRateLimiter.markRateLimited(model, delay, '429 Quota Exhausted');
+              }
               console.warn(`[geminiService] Model ${model} returned ${res.status}: ${errBody.slice(0, 150)}`);
             }
           } catch (modelErr) {

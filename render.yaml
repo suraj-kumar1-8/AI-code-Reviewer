@@ -1,0 +1,40 @@
+services:
+  # Backend Node.js / Express API Service
+  - type: web
+    name: ai-code-reviewer-backend
+    runtime: node
+    plan: starter
+    rootDir: server
+    buildCommand: npm install --production
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: CLIENT_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: GITHUB_CLIENT_ID
+        sync: false
+      - key: GITHUB_CLIENT_SECRET
+        sync: false
+      - key: GITHUB_CALLBACK_URL
+        sync: false
+      - key: GITHUB_WEBHOOK_SECRET
+        generateValue: true
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.1-flash-lite
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ai-code-reviewer-db
+          property: connectionString
+
+# PostgreSQL Database with pgvector extension support
+databases:
+  - name: ai-code-reviewer-db
+    plan: starter
+    postgresMajorVersion: 16

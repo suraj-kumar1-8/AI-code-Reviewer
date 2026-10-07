@@ -4,6 +4,8 @@ import { githubService } from '../services/githubService.js';
 
 // In-memory review cache to avoid repeated expensive AI and API requests
 const reviewCache = new Map();
+// In-flight analysis deduplication map: cacheKey -> Promise<payload>
+const inFlightAnalyses = new Map();
 
 export const reviewController = {
   /**
@@ -40,6 +42,17 @@ export const reviewController = {
         }
       }
 
+      // Deduplicate simultaneous requests in flight
+      if (!force && inFlightAnalyses.has(cacheKey)) {
+        console.log(`[reviewController] Deduplicating in-flight analysis for ${cacheKey}...`);
+        const payload = await inFlightAnalyses.get(cacheKey);
+        return res.json({
+          success: true,
+          deduplicated: true,
+          ...payload,
+        });
+      }
+
       const accessToken = req.githubAccessToken;
 
       if (!accessToken) {
@@ -49,60 +62,71 @@ export const reviewController = {
         });
       }
 
-      console.log(`[reviewController] Starting analysis for ${owner}/${repo} (branch: ${branch || 'default'})...`);
+      const runAnalysis = async () => {
+        console.log(`[reviewController] Starting analysis for ${owner}/${repo} (branch: ${branch || 'default'})...`);
 
-      // 1. Fetch repository source files
-      const { repoDetails, files, targetBranch, totalFilesConsidered } =
-        await repoFileFetcher.fetchRepoSourceFiles({
-          accessToken,
-          owner,
-          repo,
-          branch,
+        // 1. Fetch repository source files
+        const { repoDetails, files, targetBranch, totalFilesConsidered } =
+          await repoFileFetcher.fetchRepoSourceFiles({
+            accessToken,
+            owner,
+            repo,
+            branch,
+          });
+
+        console.log(`[reviewController] Fetched ${files.length} code files out of ${totalFilesConsidered} total files.`);
+
+        // 2. Run Gemini AI Code Review
+        const reviewResult = await geminiService.analyzeCodebase({
+          repository: repoDetails,
+          files,
         });
 
-      console.log(`[reviewController] Fetched ${files.length} code files out of ${totalFilesConsidered} total files.`);
+        // 3. Cache and return response
+        const payload = {
+          summary: reviewResult.summary,
+          score: reviewResult.score,
+          stats: reviewResult.stats || { critical: 0, high: 0, medium: 0, low: 0 },
+          metrics: reviewResult.metrics,
+          issues: reviewResult.issues,
+          analyzedFilesCount: reviewResult.analyzedFilesCount,
+          sourceFiles: files.map((f) => ({
+            path: f.path,
+            language: f.language,
+            content: f.content,
+            lineCount: f.lineCount,
+          })),
+          repository: {
+            id: repoDetails.id,
+            owner: repoDetails.owner,
+            name: repoDetails.name,
+            full_name: repoDetails.full_name,
+            default_branch: repoDetails.default_branch,
+            targetBranch,
+            html_url: repoDetails.html_url,
+            stars: repoDetails.stars,
+            forks: repoDetails.forks,
+            language: repoDetails.language,
+          },
+          timestamp: new Date().toISOString(),
+        };
 
-      // 2. Run Gemini AI Code Review
-      const reviewResult = await geminiService.analyzeCodebase({
-        repository: repoDetails,
-        files,
-      });
-
-      // 3. Cache and return response
-      const payload = {
-        summary: reviewResult.summary,
-        score: reviewResult.score,
-        stats: reviewResult.stats || { critical: 0, high: 0, medium: 0, low: 0 },
-        metrics: reviewResult.metrics,
-        issues: reviewResult.issues,
-        analyzedFilesCount: reviewResult.analyzedFilesCount,
-        sourceFiles: files.map((f) => ({
-          path: f.path,
-          language: f.language,
-          content: f.content,
-          lineCount: f.lineCount,
-        })),
-        repository: {
-          id: repoDetails.id,
-          owner: repoDetails.owner,
-          name: repoDetails.name,
-          full_name: repoDetails.full_name,
-          default_branch: repoDetails.default_branch,
-          targetBranch,
-          html_url: repoDetails.html_url,
-          stars: repoDetails.stars,
-          forks: repoDetails.forks,
-          language: repoDetails.language,
-        },
-        timestamp: new Date().toISOString(),
+        reviewCache.set(cacheKey, payload);
+        return payload;
       };
 
-      reviewCache.set(cacheKey, payload);
+      const analysisPromise = runAnalysis();
+      inFlightAnalyses.set(cacheKey, analysisPromise);
 
-      return res.json({
-        success: true,
-        ...payload,
-      });
+      try {
+        const payload = await analysisPromise;
+        return res.json({
+          success: true,
+          ...payload,
+        });
+      } finally {
+        inFlightAnalyses.delete(cacheKey);
+      }
     } catch (err) {
       console.error('[reviewController.analyze Error]:', err);
       return res.status(500).json({

@@ -1,4 +1,6 @@
 import { githubService } from './githubService.js';
+import { config } from '../config/index.js';
+import db from '../db/index.js';
 
 // Safe characters pattern to prevent path traversal or command injection
 const SAFE_IDENTIFIER_REGEX = /^[a-zA-Z0-9_.-]+$/;
@@ -153,6 +155,18 @@ function scoreFilePath(path) {
   const lower = path.toLowerCase();
   let score = 10;
 
+  // Highly prioritize project manifests and architecture configs
+  if (
+    lower.endsWith('package.json') ||
+    lower.endsWith('requirements.txt') ||
+    lower.endsWith('go.mod') ||
+    lower.endsWith('cargo.toml') ||
+    lower.includes('docker-compose') ||
+    lower.endsWith('dockerfile')
+  ) {
+    score += 45;
+  }
+
   // Prioritize primary source directories
   if (lower.startsWith('src/') || lower.includes('/src/')) score += 30;
   if (lower.startsWith('server/') || lower.startsWith('app/') || lower.startsWith('lib/')) score += 25;
@@ -182,12 +196,61 @@ export const repoFileFetcher = {
     // 1. Input Validation
     validateRepositoryIdentifiers(owner, repo, branch);
 
-    // 2. Fetch repo metadata
-    const repoDetails = await githubService.getRepoDetails(accessToken, owner, repo);
-    const targetBranch = branch || repoDetails.default_branch || 'main';
+    const effectiveToken = accessToken || config.github?.token || process.env.GITHUB_TOKEN || null;
 
-    // 3. Fetch entire git tree
-    const tree = await githubService.getRepoTree(accessToken, owner, repo, targetBranch);
+    // 2. Fetch repo metadata and git tree with resilient fallback to indexed chunks
+    let repoDetails;
+    let targetBranch = branch || 'main';
+    let tree;
+
+    try {
+      repoDetails = await githubService.getRepoDetails(effectiveToken, owner, repo);
+      targetBranch = branch || repoDetails.default_branch || 'main';
+      tree = await githubService.getRepoTree(effectiveToken, owner, repo, targetBranch);
+    } catch (fetchErr) {
+      console.warn(`[repoFileFetcher] GitHub fetch note (${fetchErr.message}). Checking indexed PostgreSQL code_chunks...`);
+      const repoKey = `${owner.toLowerCase()}/${repo.toLowerCase()}`;
+      const chunkRes = await db.query(
+        `SELECT file_path, language, chunk_content, start_line, end_line
+         FROM code_chunks
+         WHERE repository_id = $1
+         ORDER BY file_path, chunk_index ASC;`,
+        [repoKey]
+      );
+
+      if (chunkRes.rows && chunkRes.rows.length > 0) {
+        const fileMap = new Map();
+        for (const r of chunkRes.rows) {
+          if (!fileMap.has(r.file_path)) {
+            fileMap.set(r.file_path, {
+              path: r.file_path,
+              language: r.language,
+              content: r.chunk_content,
+              size: r.chunk_content.length,
+              lineCount: r.chunk_content.split('\n').length,
+            });
+          } else {
+            const existing = fileMap.get(r.file_path);
+            existing.content += '\n' + r.chunk_content;
+            existing.size = existing.content.length;
+            existing.lineCount = existing.content.split('\n').length;
+          }
+        }
+
+        const reconstructedFiles = Array.from(fileMap.values());
+        console.log(`[repoFileFetcher] Reconstructed ${reconstructedFiles.length} files from indexed chunks for ${repoKey}`);
+
+        return {
+          repoDetails: { name: repo, owner: { login: owner }, default_branch: targetBranch },
+          targetBranch,
+          totalFilesConsidered: reconstructedFiles.length,
+          files: reconstructedFiles,
+          fromIndexedChunks: true,
+        };
+      }
+
+      throw fetchErr;
+    }
 
     if (!Array.isArray(tree) || tree.length === 0) {
       return {
@@ -246,7 +309,7 @@ export const repoFileFetcher = {
         batch.map(async (fileItem) => {
           try {
             const rawContent = await githubService.getRawFileContent(
-              accessToken,
+              effectiveToken,
               owner,
               repo,
               fileItem.path,
@@ -287,6 +350,13 @@ export const repoFileFetcher = {
       totalFilesConsidered: candidateFiles.length,
       files: fetchedFiles,
     };
+  },
+
+  /**
+   * Alias for fetchRepoSourceFiles
+   */
+  async fetchRepositorySourceFiles(args) {
+    return this.fetchRepoSourceFiles(args);
   },
 };
 

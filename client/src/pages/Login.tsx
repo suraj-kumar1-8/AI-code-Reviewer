@@ -131,7 +131,7 @@ export const Login: React.FC = () => {
                   {oauthMessage || 'Please configure GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET in server/.env to enable live authorization.'}
                 </p>
                 <div className="mt-2 text-[11px] text-gray-400 font-mono bg-black/40 p-2 rounded border border-white/5">
-                  Callback URL: http://localhost:5001/api/auth/github/callback
+                  Callback URL: &lt;server-url&gt;/api/auth/github/callback (e.g. http://localhost:5001/api/auth/github/callback)
                 </div>
               </div>
             </div>

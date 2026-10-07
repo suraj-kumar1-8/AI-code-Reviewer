@@ -5,7 +5,25 @@ async function handleGitHubError(response, actionName) {
     throw new Error('Your GitHub authorization session has expired or is invalid. Please sign in with GitHub again.');
   }
   const err = await response.text();
+  if (response.status === 403 && (err.includes('rate limit') || err.includes('API rate limit exceeded'))) {
+    throw new Error(
+      `GitHub API rate limit exceeded (60 req/hr unauthenticated limit). Please configure GITHUB_TOKEN in server/.env or authenticate via GitHub OAuth to raise your limit to 5,000 req/hr. Response: ${err}`
+    );
+  }
   throw new Error(`Failed to ${actionName}: ${response.status} ${err}`);
+}
+
+function getGitHubHeaders(accessToken, extraHeaders = {}) {
+  const token = accessToken || config.github?.token || process.env.GITHUB_TOKEN || null;
+  const headers = {
+    Accept: 'application/vnd.github.v3+json',
+    'User-Agent': 'AI-Code-Reviewer',
+    ...extraHeaders,
+  };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  return headers;
 }
 
 export const githubService = {
@@ -65,11 +83,7 @@ export const githubService = {
    */
   async getUserProfile(accessToken) {
     const response = await fetch(`${config.github.apiBaseUrl}/user`, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: 'application/vnd.github.v3+json',
-        'User-Agent': 'AI-Code-Reviewer',
-      },
+      headers: getGitHubHeaders(accessToken),
     });
 
     if (!response.ok) {
@@ -103,11 +117,7 @@ export const githubService = {
     });
 
     const response = await fetch(`${config.github.apiBaseUrl}/user/repos?${params.toString()}`, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: 'application/vnd.github.v3+json',
-        'User-Agent': 'AI-Code-Reviewer',
-      },
+      headers: getGitHubHeaders(accessToken),
     });
 
     if (!response.ok) {
@@ -139,12 +149,10 @@ export const githubService = {
    * Fetches single repository details
    */
   async getRepoDetails(accessToken, owner, repo) {
+    const headers = getGitHubHeaders(accessToken);
+
     const response = await fetch(`${config.github.apiBaseUrl}/repos/${owner}/${repo}`, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: 'application/vnd.github.v3+json',
-        'User-Agent': 'AI-Code-Reviewer',
-      },
+      headers,
     });
 
     if (!response.ok) {
@@ -169,32 +177,41 @@ export const githubService = {
   },
 
   /**
+   * Fetches latest commit SHA for a branch
+   */
+  async getBranchCommitSha(accessToken, owner, repo, branch = 'main') {
+    const headers = getGitHubHeaders(accessToken);
+
+    try {
+      const response = await fetch(
+        `${config.github.apiBaseUrl}/repos/${owner}/${repo}/commits/${encodeURIComponent(branch)}`,
+        { headers }
+      );
+      if (!response.ok) return null;
+      const data = await response.json();
+      return data.sha || null;
+    } catch {
+      return null;
+    }
+  },
+
+  /**
    * Fetches the complete git tree for a repository
    */
   async getRepoTree(accessToken, owner, repo, branch = 'main') {
+    const headers = getGitHubHeaders(accessToken);
+
     // Attempt tree by branch name directly
     let response = await fetch(
       `${config.github.apiBaseUrl}/repos/${owner}/${repo}/git/trees/${encodeURIComponent(branch)}?recursive=1`,
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          Accept: 'application/vnd.github.v3+json',
-          'User-Agent': 'AI-Code-Reviewer',
-        },
-      }
+      { headers }
     );
 
     // If branch name fails (e.g., master instead of main), look up commit SHA
     if (!response.ok && (response.status === 404 || response.status === 422)) {
       const commitRes = await fetch(
         `${config.github.apiBaseUrl}/repos/${owner}/${repo}/commits/${encodeURIComponent(branch)}`,
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            Accept: 'application/vnd.github.v3+json',
-            'User-Agent': 'AI-Code-Reviewer',
-          },
-        }
+        { headers }
       );
 
       if (commitRes.ok) {
@@ -203,13 +220,7 @@ export const githubService = {
         if (treeSha) {
           response = await fetch(
             `${config.github.apiBaseUrl}/repos/${owner}/${repo}/git/trees/${treeSha}?recursive=1`,
-            {
-              headers: {
-                Authorization: `Bearer ${accessToken}`,
-                Accept: 'application/vnd.github.v3+json',
-                'User-Agent': 'AI-Code-Reviewer',
-              },
-            }
+            { headers }
           );
         }
       }
@@ -232,15 +243,13 @@ export const githubService = {
       .map((segment) => encodeURIComponent(segment))
       .join('/');
 
+    const headers = getGitHubHeaders(accessToken, {
+      Accept: 'application/vnd.github.raw',
+    });
+
     const response = await fetch(
       `${config.github.apiBaseUrl}/repos/${owner}/${repo}/contents/${encodedPath}?ref=${encodeURIComponent(ref)}`,
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          Accept: 'application/vnd.github.raw',
-          'User-Agent': 'AI-Code-Reviewer',
-        },
-      }
+      { headers }
     );
 
     if (response.status === 404) {
