@@ -1,12 +1,20 @@
 import pg from 'pg';
+import { Signer } from '@aws-sdk/rds-signer';
 import { config } from '../config/index.js';
 
 const { Pool } = pg;
 
-// Construct connection configuration
-const connectionString = config.database?.url || process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5433/code_reviewer';
-
 const isProduction = config.nodeEnv === 'production';
+const useRdsIam = process.env.RDS_IAM_AUTH === 'true';
+
+const RDS_HOST =
+  process.env.RDS_HOST ||
+  'database-1.cluster-cha6ao8i4zsy.ap-southeast-2.rds.amazonaws.com';
+
+const RDS_PORT = Number(process.env.RDS_PORT || 5432);
+const RDS_REGION = process.env.AWS_REGION || 'ap-southeast-2';
+const RDS_USER = process.env.RDS_USER || 'ai_reviewer';
+const RDS_DATABASE = process.env.RDS_DATABASE || 'postgres';
 
 const sslConfig =
   process.env.DATABASE_SSL === 'false'
@@ -17,13 +25,47 @@ const sslConfig =
           : false
       );
 
-export const pool = new Pool({
-  connectionString,
-  ssl: sslConfig,
-  max: 15,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
-});
+let pool;
+
+if (useRdsIam) {
+  const signer = new Signer({
+    hostname: RDS_HOST,
+    port: RDS_PORT,
+    region: RDS_REGION,
+    username: RDS_USER,
+  });
+
+  pool = new Pool({
+    host: RDS_HOST,
+    port: RDS_PORT,
+    database: RDS_DATABASE,
+    user: RDS_USER,
+    password: async () => signer.getAuthToken(),
+    ssl: sslConfig,
+    max: 15,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 15000,
+  });
+
+  console.log('[Database] Aurora RDS IAM authentication enabled');
+} else {
+  const connectionString =
+    config.database?.url ||
+    process.env.DATABASE_URL ||
+    'postgresql://postgres:postgres@localhost:5433/code_reviewer';
+
+  pool = new Pool({
+    connectionString,
+    ssl: sslConfig,
+    max: 15,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 5000,
+  });
+
+  console.log('[Database] DATABASE_URL authentication enabled');
+}
+
+export { pool };
 
 pool.on('error', (err) => {
   console.error('[PostgreSQL Pool Error]:', err.message);
