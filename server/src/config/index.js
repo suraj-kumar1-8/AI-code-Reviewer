@@ -43,7 +43,7 @@ export const config = {
   },
   rag: {
     embeddingDimension: 768,
-    similarityThreshold: 0.25,
+    similarityThreshold: 0.12,
     topK: 6,
     maxContextTokens: 6000,
   },
