@@ -1,120 +1,19 @@
-name: Deploy AI Code Reviewer
+name: Runner Test
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 jobs:
-  deploy:
+  test:
     runs-on: self-hosted
 
     steps:
-      - name: Deploy to Production
+      - name: Test runner
         shell: bash
         run: |
-          set -Eeuo pipefail
-
-          APP_DIR="/home/ec2-user/AI-code-Reviewer"
-          FRONTEND_DIR="/usr/share/nginx/html"
-          BACKUP_DIR="/tmp/ai-code-reviewer-frontend-backup"
-
-          cd "$APP_DIR"
-
-          echo "======================================"
-          echo "🚀 AI Code Reviewer Production Deploy"
-          echo "======================================"
-
-          echo "Current production commit:"
-          PREVIOUS_COMMIT="$(git rev-parse HEAD)"
-          echo "$PREVIOUS_COMMIT"
-
-          echo "Fetching latest main..."
-          git fetch origin main
-
-          NEW_COMMIT="$(git rev-parse FETCH_HEAD)"
-          echo "Latest GitHub commit: $NEW_COMMIT"
-
-          if [ "$PREVIOUS_COMMIT" = "$NEW_COMMIT" ]; then
-            echo "No new commit. Nothing to deploy."
-            exit 0
-          fi
-
-          echo "Updating production source..."
-          git reset --hard "$NEW_COMMIT"
-
-          echo "Installing frontend dependencies..."
-          npm ci
-
-          echo "Building frontend..."
-          npm run build
-
-          echo "Installing backend dependencies..."
-          cd "$APP_DIR/server"
-          npm ci
-
-          echo "Creating frontend backup..."
-          sudo rm -rf "$BACKUP_DIR"
-          sudo cp -a "$FRONTEND_DIR" "$BACKUP_DIR"
-
-          echo "Restarting backend..."
-          pm2 restart ai-code-reviewer --update-env
-
-          echo "Waiting for backend..."
-          sleep 5
-
-          echo "Checking backend..."
-          HTTP_CODE="$(curl -sS -o /dev/null -w "%{http_code}" \
-            --max-time 10 \
-            http://127.0.0.1:5001/api/auth/github || true)"
-
-          echo "Backend HTTP status: $HTTP_CODE"
-
-          if [ "$HTTP_CODE" != "302" ]; then
-            echo "❌ Backend health check failed."
-            echo "🔄 Rolling back backend..."
-
-            cd "$APP_DIR"
-            git reset --hard "$PREVIOUS_COMMIT"
-
-            cd "$APP_DIR/server"
-            npm ci
-            pm2 restart ai-code-reviewer --update-env
-
-            echo "❌ Deployment rolled back."
-            exit 1
-          fi
-
-          echo "✅ Backend healthy."
-
-          echo "Deploying frontend..."
-          sudo rm -rf "$FRONTEND_DIR"/*
-          sudo cp -a "$APP_DIR/client/dist/." "$FRONTEND_DIR"/
-
-          echo "Testing Nginx..."
-          if ! sudo nginx -t; then
-            echo "❌ Nginx configuration failed."
-            echo "🔄 Restoring frontend..."
-
-            sudo rm -rf "$FRONTEND_DIR"/*
-            sudo cp -a "$BACKUP_DIR/." "$FRONTEND_DIR"/
-
-            cd "$APP_DIR"
-            git reset --hard "$PREVIOUS_COMMIT"
-
-            cd "$APP_DIR/server"
-            npm ci
-            pm2 restart ai-code-reviewer --update-env
-
-            exit 1
-          fi
-
-          sudo systemctl reload nginx
-
-          echo "======================================"
-          echo "✅ DEPLOYMENT SUCCESSFUL"
-          echo "======================================"
-
-          echo "Previous commit: $PREVIOUS_COMMIT"
-          echo "Current commit:  $NEW_COMMIT"
+          echo "RUNNER WORKS"
+          whoami
+          pwd
+          node -v
+          npm -v
+          git --version
