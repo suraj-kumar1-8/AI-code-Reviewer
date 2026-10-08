@@ -1,19 +1,80 @@
-name: Runner Test
+name: Deploy AI Code Reviewer
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 jobs:
-  test:
+  deploy:
     runs-on: self-hosted
 
     steps:
-      - name: Test runner
+      - name: Deploy to Production
         shell: bash
         run: |
-          echo "RUNNER WORKS"
-          whoami
-          pwd
-          node -v
-          npm -v
-          git --version
+          set -Eeuo pipefail
+
+          APP_DIR="/home/ec2-user/AI-code-Reviewer"
+          FRONTEND_DIR="/usr/share/nginx/html"
+          BACKUP_DIR="/tmp/ai-code-reviewer-frontend-backup"
+
+          cd "$APP_DIR"
+
+          PREVIOUS_COMMIT="$(git rev-parse HEAD)"
+          echo "Previous commit: $PREVIOUS_COMMIT"
+
+          git fetch origin main
+          NEW_COMMIT="$(git rev-parse FETCH_HEAD)"
+          echo "Deploying commit: $NEW_COMMIT"
+
+          git reset --hard "$NEW_COMMIT"
+
+          npm ci
+          npm run build
+
+          cd "$APP_DIR/server"
+          npm ci
+
+          sudo rm -rf "$BACKUP_DIR"
+          sudo cp -a "$FRONTEND_DIR" "$BACKUP_DIR"
+
+          pm2 restart ai-code-reviewer --update-env
+
+          sleep 5
+
+          HTTP_CODE="$(curl -sS -o /dev/null -w "%{http_code}" \
+            --max-time 10 \
+            http://127.0.0.1:5001/api/auth/github || true)"
+
+          if [ "$HTTP_CODE" != "302" ]; then
+            echo "Backend health check failed: HTTP $HTTP_CODE"
+            echo "Rolling back..."
+
+            cd "$APP_DIR"
+            git reset --hard "$PREVIOUS_COMMIT"
+
+            npm ci
+            npm run build
+
+            cd "$APP_DIR/server"
+            pm2 restart ai-code-reviewer --update-env
+
+            sudo rm -rf "$FRONTEND_DIR"/*
+            sudo cp -a "$APP_DIR/client/dist/." "$FRONTEND_DIR"/
+
+            sudo nginx -t
+            sudo systemctl reload nginx
+
+            exit 1
+          fi
+
+          cd "$APP_DIR"
+
+          sudo rm -rf "$FRONTEND_DIR"/*
+          sudo cp -a "$APP_DIR/client/dist/." "$FRONTEND_DIR"/
+
+          sudo nginx -t
+          sudo systemctl reload nginx
+
+          echo "Deployment successful."
