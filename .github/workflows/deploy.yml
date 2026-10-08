@@ -12,6 +12,8 @@ jobs:
 
     steps:
       - name: Deploy to Production
+        env:
+          BASH_ENV: /dev/null
         shell: bash
         run: |
           set -Eeuo pipefail
